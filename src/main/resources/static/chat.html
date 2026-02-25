@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <!--
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+    <body>
+
+    <h1> ChatRoom</h1>
+    <hr/>
+    <div>
+        Email: <input id="email" /><br />
+        Password: <input type="password" id="passwd" /><br />
+        <button id="login">Login</button>
+    </div>
+    <p>登入狀態: <span id="status">未登入</span></p>
+    <div id="chatDiv" style="display:none">
+        <div id="chatBox" style="border: 1px solid #ccc; width:480px; height:300px; overflow-y:scroll;"></div>
+        <input id="mesg" style="width:400px" />
+        <button id="send">Send</button>
+    </div>
+    <script src="js/chat.js"></script>
+    </body>
+</html>
