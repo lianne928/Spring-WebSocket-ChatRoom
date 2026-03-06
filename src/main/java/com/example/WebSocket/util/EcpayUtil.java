@@ -36,4 +36,21 @@ public class EcpayUtil {
         }
         return sb.toString();
     }
+    
+    public static boolean verify(Map<String, String> data, String hashKey, String hashIV) throws Exception {
+        // 1. 先取出綠界傳過來的檢查碼
+        String ecpayCheckMacValue = data.get("CheckMacValue");
+        if (ecpayCheckMacValue == null) return false;
+
+        // 2. 移除 Map 中的 CheckMacValue 欄位（因為計算時不能包含它自己）
+        Map<String, String> verifyParams = data.entrySet().stream()
+                .filter(e -> !e.getKey().equals("CheckMacValue"))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // 3. 使用你原本的 generate 方法重新算一次
+        String calculatedValue = generate(verifyParams, hashKey, hashIV);
+
+        // 4. 比對重新算出來的是否跟綠界傳來的一樣
+        return calculatedValue.equals(ecpayCheckMacValue);
+    }
 }

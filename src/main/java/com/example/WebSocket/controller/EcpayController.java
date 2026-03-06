@@ -5,22 +5,31 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.WebSocket.entity.Orders;
+import com.example.WebSocket.repo.OrdersRepo;
 import com.example.WebSocket.util.EcpayUtil;
 
 @RestController
 @RequestMapping("/ecpay")
 public class EcpayController {
+	
+	@Autowired
+	private OrdersRepo ordersRepo;
+	
+	private Long userId= 1L;
 
     private final String MERCHANT_ID = "3002607";
     private final String HASH_KEY = "pwFHCqoQZGmho4w6";
     private final String HASH_IV = "EkRm7iFT261dpevs";
-    private final String ECPAY_URL =
+    private final String ECPAY_URL
+    =
             "https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5";
 
     // =========================
@@ -93,29 +102,53 @@ public class EcpayController {
     // 綠界背景通知
     // =========================
     @PostMapping("/return")
-    public String returnUrl(@RequestParam Map<String, String> data) {
+    public String returnUrl(@RequestParam Map<String, String> data) throws Exception {
+    	boolean isValid = EcpayUtil.verify(data, HASH_KEY, HASH_IV);
+        
+        if (!isValid) {
+            System.out.println("警告：檢查碼驗證失敗！此請求可能是偽造的。");
+            return "0|CheckMacValueVerifyFail"; 
+        }
 
-        String rtnCode = data.get("RtnCode");   // 1 = 成功
-        String msg = data.get("RtnMsg"); // 交易結果
-        String orderNo = data.get("MerchantTradeNo"); //訂單編號
-        String PaymentDate = data.get("PaymentDate");
-        String CheckMacValue = data.get("CheckMacValue");
-        String TradeAmt = data.get("TradeAmt");
-        String PaymentType = data.get("PaymentType");
+        String RtnCode = data.get("RtnCode");   // 1 = 成功
+        String RtnMsg = data.get("RtnMsg"); // 交易成功
+        String MerchantTradeNo = data.get("MerchantTradeNo"); //綠界單號（一筆booking 一筆單號）merchant_trade_no
+        String PaymentDate = data.get("PaymentDate"); //付款成功時間created_at
+        String TradeAmt = data.get("TradeAmt");//支付總金額total_amount
 
-        System.out.println(
-            "訂單 " + orderNo + " 回傳狀態: " + rtnCode + " - " + msg
-        );
-        System.out.println("商店id: "+ MERCHANT_ID);
+        System.out.println("訂單id: "+ MerchantTradeNo);
+        System.out.println("回傳狀態: " + RtnCode + " - " + RtnMsg);
         System.out.println("交易時間: "+ PaymentDate);
         System.out.println("訂單金額: "+ TradeAmt);
-        System.out.println("檢查碼: "+ CheckMacValue);
-        System.out.println("付款方式: "+ PaymentType);
 
-        if ("1".equals(rtnCode)) {
-            System.out.println("付款成功處理...");
+        if ("1".equals(RtnCode)) {
+        	// 1. 建立實體物件
+            Orders order = new Orders();
+
+            // 2. 填入資料 (注意：這裡的 set 方法名稱需對應你的 Entity 變數名)
+            order.setMerchantTradeNo(MerchantTradeNo);
+            
+            order.setUserId(userId);
+            
+            // 將金額字串轉為 Integer
+            if (TradeAmt != null) {
+                order.setTotalAmount(Integer.parseInt(TradeAmt));
+            }
+
+            // 3. 處理時間 (如果想用綠界給的時間)
+            // 註：綠界格式 yyyy/MM/dd HH:mm:ss
+            if (PaymentDate != null) {
+                java.time.format.DateTimeFormatter formatter = 
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
+                order.setCreatedAt(java.time.LocalDateTime.parse(PaymentDate, formatter));
+            }
+
+            // 4. 執行存檔
+            ordersRepo.save(order);
+            
+            System.out.println("訂單儲存成功！編號：" + MerchantTradeNo);
         } else {
-            System.out.println("付款失敗處理...");
+            System.out.println("打回原形...");
         }
 
         // ⚠️ 綠界規定一定要回
