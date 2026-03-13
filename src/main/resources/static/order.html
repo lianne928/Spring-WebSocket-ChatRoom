@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>訂單資訊接收</title>
+</head>
+<body>
+    <h2>我的訂單資訊</h2>
+    <div id="order-info">載入中...</div>
+
+    <script>
+        // 假設後端 API 路徑是 /api/orders/1
+        fetch('/') 
+            .then(response => response.json()) // 將結果轉為 JSON
+            .then(data => {
+                // 這裡的 data 欄位名稱會跟你的 Entity 變數名一樣（Lombok 生成的）
+                const html = `
+                    <p>訂單 ID: ${data.id}</p>
+                    <p>用戶 ID: ${data.userId}</p>
+                    <p>特店交易編號: ${data.merchantTradeNo}</p>
+                    <p>總金額: $${data.totalAmount}</p>
+                    <p>建立時間: ${data.createdAt}</p>
+                `;
+                document.getElementById('order-info').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('抓取失敗:', error);
+                document.getElementById('order-info').innerText = '找不到訂單資料';
+            });
+    </script>
+</body>
+</html>
