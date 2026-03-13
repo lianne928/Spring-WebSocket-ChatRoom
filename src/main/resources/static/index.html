@@ -9,9 +9,12 @@
 <h2>綠界付款測試</h2>
 
 <!-- 直接送到 Spring Controller -->
-<form action="https://subjugable-uncreditably-ignacia.ngrok-free.dev/ecpay/pay" method="get
-">
-    <button type="submit">前往付款</button>
+<form action="https://subjugable-uncreditably-ignacia.ngrok-free.dev/ecpay/pay" method="post">
+    userId:
+    <input type="number" name="userId" value="1">
+    price:
+    <input type="number" name="ecpayprice" value="100">
+    <button type="submit">送出</button>
 </form>
 
 </body>

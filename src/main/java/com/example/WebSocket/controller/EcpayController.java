@@ -6,25 +6,22 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.WebSocket.entity.Orders;
-import com.example.WebSocket.repo.OrdersRepo;
+import com.example.WebSocket.dto.EcpayReturnDto;
+import com.example.WebSocket.service.*;
 import com.example.WebSocket.util.EcpayUtil;
 
 @RestController
 @RequestMapping("/ecpay")
 public class EcpayController {
-	
-	@Autowired
-	private OrdersRepo ordersRepo;
-	
-	private Long userId= 1L;
 
+	@Autowired
+    private WalletLogsService walletLogsService;
+	
     private final String MERCHANT_ID = "3002607";
     private final String HASH_KEY = "pwFHCqoQZGmho4w6";
     private final String HASH_IV = "EkRm7iFT261dpevs";
@@ -35,11 +32,12 @@ public class EcpayController {
     // =========================
     // 付款入口
     // =========================
-    @GetMapping("/pay")
-    public String pay() throws Exception {
+    @PostMapping("/pay")
+    public String pay(@RequestParam("ecpayprice") String ecpayprice,@RequestParam("userId") String userId) throws Exception {
 
         Map<String, String> params = new LinkedHashMap<>();
 
+        params.put("CustomField1", String.valueOf(userId));
         //商店代號
         params.put("MerchantID", MERCHANT_ID);
         //訂單編號
@@ -50,11 +48,11 @@ public class EcpayController {
         //付款型態(規定aio)
         params.put("PaymentType", "aio");
         //金額
-        params.put("TotalAmount", "200");
+        params.put("TotalAmount", ecpayprice);
         //交易描述
-        params.put("TradeDesc", "測試交易");
+        params.put("TradeDesc", "儲值");
         //商品名稱
-        params.put("ItemName", "測試商品");
+        params.put("ItemName", "儲值交易");
         //背景通知 URL
         params.put("ReturnURL",
                 "https://subjugable-uncreditably-ignacia.ngrok-free.dev/ecpay/return");
@@ -98,9 +96,7 @@ public class EcpayController {
         return sb.toString();
     }
 
-    // =========================
-    // 綠界背景通知
-    // =========================
+    // 綠界前端給我
     @PostMapping("/return")
     public String returnUrl(@RequestParam Map<String, String> data) throws Exception {
     	boolean isValid = EcpayUtil.verify(data, HASH_KEY, HASH_IV);
@@ -109,7 +105,7 @@ public class EcpayController {
             System.out.println("警告：檢查碼驗證失敗！此請求可能是偽造的。");
             return "0|CheckMacValueVerifyFail"; 
         }
-
+        String userId = data.get("CustomField1");
         String RtnCode = data.get("RtnCode");   // 1 = 成功
         String RtnMsg = data.get("RtnMsg"); // 交易成功
         String MerchantTradeNo = data.get("MerchantTradeNo"); //綠界單號（一筆booking 一筆單號）merchant_trade_no
@@ -120,35 +116,19 @@ public class EcpayController {
         System.out.println("回傳狀態: " + RtnCode + " - " + RtnMsg);
         System.out.println("交易時間: "+ PaymentDate);
         System.out.println("訂單金額: "+ TradeAmt);
+        System.out.println("使用者id: "+ userId);
 
-        if ("1".equals(RtnCode)) {
-        	// 1. 建立實體物件
-            Orders order = new Orders();
-
-            // 2. 填入資料 (注意：這裡的 set 方法名稱需對應你的 Entity 變數名)
-            order.setMerchantTradeNo(MerchantTradeNo);
-            
-            order.setUserId(userId);
-            
-            // 將金額字串轉為 Integer
-            if (TradeAmt != null) {
-                order.setTotalAmount(Integer.parseInt(TradeAmt));
+        EcpayReturnDto dto = new EcpayReturnDto();
+        dto.setMerchantTradeNo(data.get("MerchantTradeNo"));
+        dto.setRtnCode(data.get("RtnCode"));
+        dto.setTradeAmt(data.get("TradeAmt"));
+        dto.setCustomField1(data.get("CustomField1"));
+        if ("1".equals(dto.getRtnCode())) {
+            try {
+                walletLogsService.processWalletDeposit(dto);
+            } catch (Exception e) {
+                return "0|ErrorMessage: " + e.getMessage();
             }
-
-            // 3. 處理時間 (如果想用綠界給的時間)
-            // 註：綠界格式 yyyy/MM/dd HH:mm:ss
-            if (PaymentDate != null) {
-                java.time.format.DateTimeFormatter formatter = 
-                    java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
-                order.setCreatedAt(java.time.LocalDateTime.parse(PaymentDate, formatter));
-            }
-
-            // 4. 執行存檔
-            ordersRepo.save(order);
-            
-            System.out.println("訂單儲存成功！編號：" + MerchantTradeNo);
-        } else {
-            System.out.println("打回原形...");
         }
 
         // ⚠️ 綠界規定一定要回
